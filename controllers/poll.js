@@ -19,20 +19,31 @@ export const pollController = {
         });
       },
       
-  create: (req, res) => {
-    const { title, start_date, end_date } = req.body;
-    const created_at = new Date();
-    const updated_at = new Date();
+create: (req, res) => {
+  const { title, start_date, end_date, options } = req.body;
 
-    const query = `INSERT INTO polls (title, start_date, end_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`;
+  if (!options || options.length < 2) {
+    return res.status(400).json({ error: "Pelo menos duas opções são obrigatórias." });
+  }
 
-    db.query(query, [title, start_date, end_date, created_at, updated_at], (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
+  const insertPoll = `INSERT INTO polls (title, start_date, end_date, created_at, updated_at)
+                      VALUES (?, ?, ?, NOW(), NOW())`;
 
-      res.status(201).json({ id: result.insertId, title, start_date, end_date, created_at, updated_at });
+  db.query(insertPoll, [title, start_date, end_date], (err, result) => {
+    if (err) return res.status(500).json({ error: "Erro ao criar enquete." });
+
+    const pollId = result.insertId;
+
+    const insertOptions = `INSERT INTO options (poll_id, text) VALUES ?`;
+    const values = options.map((opt) => [pollId, opt]);
+
+    db.query(insertOptions, [values], (err2) => {
+      if (err2) return res.status(500).json({ error: "Erro ao salvar opções." });
+
+      return res.status(201).json({ message: "Enquete criada com sucesso." });
     });
-  },
-
+  });
+},
   read: (req, res) => {
     const query = `SELECT id, title, start_date, end_date, created_at, updated_at FROM polls`;
 

@@ -43,21 +43,44 @@ export const pollController = {
     });
   },
 
-  update: (req, res) => {
-    const id = req.params.id;
-    const { title, start_date, end_date } = req.body;
-    const updated_at = new Date();
+ update: (req, res) => {
+  const id = req.params.id;
+  const { title, start_date, end_date, options } = req.body;
+  const updated_at = new Date();
 
-    const query = `UPDATE polls SET title = ?, start_date = ?, end_date = ?, updated_at = ? WHERE id = ?`;
+  const queryPoll = `UPDATE polls SET title = ?, start_date = ?, end_date = ?, updated_at = ? WHERE id = ?`;
 
-    db.query(query, [title, start_date, end_date, updated_at, id], (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
+  db.query(queryPoll, [title, start_date, end_date, updated_at, id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
 
-      if (result.affectedRows === 0) return res.status(404).json({ error: "Poll não encontrada" });
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Poll não encontrada" });
 
-      res.status(200).json({ id, title, start_date, end_date, updated_at });
-    });
-  },
+    // Atualizar as options em sequência
+    if (Array.isArray(options) && options.length > 0) {
+      // Promise para atualizar todas as options
+      const promises = options.map(opt => {
+        return new Promise((resolve, reject) => {
+          const { id: optionId, text } = opt;
+          const queryOption = `UPDATE options SET text = ?, updated_at = ? WHERE id = ? AND poll_id = ?`;
+          db.query(queryOption, [text, updated_at, optionId, id], (errOpt, resultOpt) => {
+            if (errOpt) return reject(errOpt);
+            resolve(resultOpt);
+          });
+        });
+      });
+
+      Promise.all(promises)
+        .then(() => {
+          res.status(200).json({ message: "Poll e opções atualizadas com sucesso" });
+        })
+        .catch(errOpt => {
+          res.status(500).json({ error: "Erro ao atualizar opções: " + errOpt.message });
+        });
+    } else {
+      res.status(200).json({ message: "Poll atualizada com sucesso (sem opções)" });
+    }
+  });
+},
 
   delete: (req, res) => {
     const id = req.params.id;
